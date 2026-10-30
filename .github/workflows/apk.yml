@@ -1,0 +1,47 @@
+name: Build Signed APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Grant execute permission
+        run: chmod +x ./gradlew
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > ${{ github.workspace }}/flowpay.jks
+
+      - name: Create keystore.properties
+        run: |
+          cat > ${{ github.workspace }}/keystore.properties << EOF
+          storeFile=${{ github.workspace }}/flowpay.jks
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          EOF
+
+      - name: Assemble signed release APK
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Upload signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: flowpay-release-signed
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 7
